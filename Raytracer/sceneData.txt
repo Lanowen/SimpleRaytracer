@@ -1,0 +1,38 @@
+//sphere position(x y z) radius colour(r g b) diffuse reflectivity
+//cone position(x y z) height baseRadius direction(x, y, z) colour(r g b) diffuse reflectivity
+	//cone note: cone tip points in direction, cone base is center of position(x y z)
+//plane position(x y z) normal(x y z) colour(r g b) diffuse reflectivity
+//circularplane position(x y z) normal(x y z) radius colour(r g b) diffuse reflectivity
+
+//note normals and unit vectors are automatically normalized
+
+//y+ is down on screen, z+ is forward into screen, x+ is right on the screen
+
+//===============================================================
+//                          Begin scene
+//===============================================================
+
+//colourmode solid
+colourmode shaded
+//colourmode normals
+//colourmode fullNormals
+
+
+sphere (250 0 500) 250 (1 0 0) 0.8 0.25
+sphere (-250 0 500) 250 (1 1 0) 0.2 0.2
+cone (3 2 5) 200 25 (0 0 100) (1 0 1) 0.8 0
+cone (-5 -1 3) 100 25 (-150 100 0) (0.1 0.5 0.2) 0.8 0.1
+cone (-0 -1 0) 50 50 (0 250 400) (1 0.3 1) 0.8 0.0
+plane (0 250 0) (0 1 0) (1 1 1) 0.5 0.1
+plane (0 0 1500) (0 0 -1) (0.1 1 0.1) 0.5 0.2
+//circularplane (100 100 300) (-0.5 0 -1) 50 (0 1 0.3) 0.5 0.2
+
+sphere (200 200 0) 25 (1 0 0) 0.8 0.2
+
+//sphere (-250 -250 100) 10 (1 0 0) 0.8 0
+//sphere (150 150 100) 10 (1 0 0) 0.8 0
+//sphere (100 -100 -200) 10 (1 0 0) 0.8 0
+
+light (-250 -250 100) 1 (1 1 1)
+light (150 150 100) 1 (0 1 1)
+light (100 -100 -200) 1 (1 1 1)
