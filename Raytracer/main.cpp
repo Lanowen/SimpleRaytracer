@@ -29,7 +29,7 @@ void setup()
 	glDisable(GL_DEPTH_TEST); 
 
 	cout << "Specify scene filename (sceneData.txt):  ";
-	string filename;
+	string filename = "sceneData.txt";
 	cin >> filename;
 
 	//SceneParser::parseScene("sceneData.txt", rayScene);	

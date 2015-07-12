@@ -25,3 +25,5 @@ obj/
 _build/
 [Bb]in
 Ankh.NoLoad
+Raytracer/Debug/
+Raytracer/Release/

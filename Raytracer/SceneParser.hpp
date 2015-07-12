@@ -65,9 +65,9 @@ public:
 			else if(tag == "cone"){
 				Vec3 position, direction, colour;
 				double height, radius, diffuse, reflectivity;
-				direction = parseVector(file);
-				file >> height >> radius;
 				position = parseVector(file);
+				file >> height >> radius;
+				direction = parseVector(file);
 				colour = parseVector(file);
 				file >> diffuse >> reflectivity;
 				scene.addShape(new Cone(direction, height, radius, position, colour, diffuse, reflectivity));
