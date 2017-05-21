@@ -1,4 +1,6 @@
 #include <iostream>
+#include <algorithm>
+#include <stack>
 
 #ifdef __APPLE__
 #  include <GLUT/glut.h>
@@ -13,11 +15,13 @@
 #include "CirularPlane.hpp"
 #include <vector>
 #include "SceneParser.hpp"
+#include <future>
 
 using namespace std;
 
 #define maxTravelDistance 20000
-#define maxReflections 500
+#define maxReflections 300
+#define fadeDistance 500000.0f
 
 Vec3 camPos(0,0, -500);
 Scene rayScene;
@@ -30,7 +34,7 @@ void setup()
 
 	cout << "Specify scene filename (sceneData.txt):  ";
 	string filename = "sceneData.txt";
-	cin >> filename;
+	//cin >> filename;
 
 	//SceneParser::parseScene("sceneData.txt", rayScene);	
 	SceneParser::parseScene(filename, rayScene);	
@@ -81,9 +85,13 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 
 				temp2 = shape->colour * shape->diffuse;
 
+
+				double invSq = fadeDistance / powf(distanceTravelled, 2);
+
 				//diffuse
 				if(shape->diffuse > 0){
-					double luma = normal.dot(itr->second) * itr->first->intensity;
+					//double luma = normal.dot(itr->second) * itr->first->intensity * invSq;
+					double luma = itr->first->intensity * invSq;
 					temp2 *= luma;
 				}
 						
@@ -92,9 +100,10 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 					temp2 += itr->first->colour * pow(normal.dot(itr->second), 50) * shape->specular;
 				}
 
+
 				tempColour += temp2;
 
-				if(previousRelfec > 0 && numReflections <  maxReflections){
+				if(previousRelfec > 0 && numReflections <  maxReflections && invSq > 1e-3){
 					delete lightsHit;
 					lightsHit = NULL;
 
@@ -144,9 +153,12 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 
 					tempColour = shape->colour * shape->diffuse;
 
+					double invSq = fadeDistance / powf(distanceTravelled, 2);
+
 					//diffuse
 					if(shape->diffuse > 0){
-						double luma = normal.dot(itr->second) * itr->first->intensity;
+						//double luma = normal.dot(itr->second) * itr->first->intensity * invSq;
+						double luma = itr->first->intensity * invSq;
 						tempColour *= luma;
 					}
 						
@@ -154,6 +166,7 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 					if(shape->specular > 0){
 						tempColour += itr->first->colour * pow(normal.dot(itr->second), 50) * shape->specular;
 					}
+
 
 					endColour += tempColour;
 
@@ -192,38 +205,134 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 	return false;
 }
 
+struct DrawPoint
+{
+	int x, y;
+	Vec3 color;
+};
+
+mutex buffAccessTodo;
+stack<DrawPoint> screenBuffTodo;
+
+mutex buffAccessDone;
+stack<DrawPoint> screenBuffDone;
+
+void drawThreaded()
+{
+	double distance;
+	Ray ray(camPos, camPos);
+
+	while(true)
+	{
+		buffAccessTodo.lock();
+		if(screenBuffTodo.size() == 0)
+		{
+			buffAccessTodo.unlock();
+			break;
+		}
+		DrawPoint dp = screenBuffTodo.top();
+		screenBuffTodo.pop();
+		buffAccessTodo.unlock();
+
+		Vec3& endColour = dp.color;
+		endColour.x = 0;
+		endColour.y = 0;
+		endColour.z = 0;
+
+		distance = 0;
+		ray.setDirection(Vec3(dp.x, dp.y, 0) - camPos);
+
+		getColour(ray, endColour, distance);
+
+		buffAccessDone.lock();
+		screenBuffDone.push(dp);
+		buffAccessDone.unlock();
+	}
+}
+
 // Drawing routine.
 void drawScene(void)
 {
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	GLint m_viewport[4];
+	glGetIntegerv(GL_VIEWPORT, m_viewport);
 
-	glGetIntegerv( GL_VIEWPORT, m_viewport );
+	{
+		vector<DrawPoint> ptList;
+		ptList.resize(m_viewport[2] * m_viewport[3]);
 
-	glColor3f(1,1,1);
-
-	Vec3 endColour, tempColour;
-	double distance;
-	Ray ray(camPos, camPos);
-	int x, y;
-	for(x = -m_viewport[2]/2; x <= m_viewport[2]/2; x++){
-		for(y = -m_viewport[3]/2; y <= m_viewport[3]/2; y++){
-			distance = 0;
-			ray.setDirection(Vec3(x,y, 0) - camPos);	
-			//ray.position = Vec3(x,y,-100);
-			//ray.setDirection(Vec3(0,0,1));
-
-			if(getColour(ray, endColour, distance)){
-				glColor3dv(&endColour.x);
-
-				glBegin(GL_POINTS);
-				glVertex2f(x+m_viewport[2]/2, y+m_viewport[3]/2);
-				glEnd();
+		for(int x = 0; x < m_viewport[2]; x++)
+		{
+			for(int y = 0; y < m_viewport[3]; y++)
+			{
+				ptList[x*m_viewport[3] + y].x = x - m_viewport[2]/2;
+				ptList[x*m_viewport[3] + y].y = y - m_viewport[3]/2;
 			}
 		}
+
+		std::random_shuffle(ptList.begin(), ptList.end());
+
+		for(int i = 0; i < ptList.size(); i++)
+		{
+			screenBuffTodo.push(ptList[i]);
+		}
+	}
+
+	{
+		auto t1 = async(launch::async, drawThreaded);
+		auto t2 = async(launch::async, drawThreaded);
+		auto t3 = async(launch::async, drawThreaded);
+		auto t4 = async(launch::async, drawThreaded);
+		auto t5 = async(launch::async, drawThreaded);
+		auto t6 = async(launch::async, drawThreaded);
+		auto t7 = async(launch::async, drawThreaded);
+		auto t8 = async(launch::async, drawThreaded);
+
+		glColor3f(1, 1, 1);
+
+		while(true)
+		{
+			buffAccessDone.lock();
+			if(screenBuffDone.size() > 0)
+			{
+				while(screenBuffDone.size() > 0)
+				{
+
+					DrawPoint dp = screenBuffDone.top();
+					screenBuffDone.pop();
+
+
+					glColor3dv(&dp.color.x);
+
+					glBegin(GL_POINTS);
+					glVertex2f(dp.x + m_viewport[2] / 2, dp.y + m_viewport[3] / 2);
+					glEnd();
+
+				}
+
+				buffAccessDone.unlock();
+
+				glFlush();
+			} else
+			{
+				buffAccessDone.unlock();
+				buffAccessTodo.lock();
+				if(screenBuffTodo.size() == 0)
+				{
+					buffAccessTodo.unlock();
+					break;
+				}
+				buffAccessTodo.unlock();
+			}
+
+			this_thread::sleep_for(chrono::milliseconds(100));
+		}
+
 		glFlush();
 	}
+	
+	system("pause");
 }
 
 // OpenGL window reshape routine.

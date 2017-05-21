@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cfloat>
 #include <sstream>
+#include <algorithm>
 
 using namespace std;
 
