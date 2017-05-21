@@ -5,5 +5,5 @@ Handles Spheres, Cones, Planes, Circular Planes, Coloured Lights and reflective 
 
 ![Alt text](/my_raytracer2.png?raw=true "Ridge Racer")
 
-Without light intensity falloff:
+[Old Version]: Without light intensity falloff:
 ![Alt text](/my_raytracer.png?raw=true "Ridge Racer")
