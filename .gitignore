@@ -20,6 +20,11 @@
 *.sdf
 *.opensdf
 *.unsuccessfulbuild
+*.VC.db
+*.iobj
+*.ipdb
+*.pdb
+*.vspx
 ipch/
 obj/
 _build/
@@ -27,3 +32,5 @@ _build/
 Ankh.NoLoad
 Raytracer/Debug/
 Raytracer/Release/
+Release/Raytracer.pdb
+.vs/

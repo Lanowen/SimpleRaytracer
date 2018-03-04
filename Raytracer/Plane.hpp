@@ -11,13 +11,18 @@ public:
 	virtual ~Plane() {}
 
 	virtual bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
-		if(abs(ray.position.dot(planeNormal) - position.dot(planeNormal)) < 1e-10)
+		double rdn = ray.position.dot(planeNormal);
+		double pdn = position.dot(planeNormal);
+
+		double diff = rdn - pdn;
+
+		if(abs(diff) < 1e-10)
 			return false;
 
 		double dot = planeNormal.dot(ray.direction);
 		if(dot < 0){
 
-			dis = -((ray.position).dot(planeNormal)-position.dot(planeNormal))/dot;
+			dis = -diff/dot;
 
 			if (dis < 0)
 				return false;
@@ -27,9 +32,9 @@ public:
 
 			return true;
 		}
-		else 
-			if(dot > 0){
-			dis = -((ray.position).dot(planeNormal)-position.dot(planeNormal))/dot;
+		else if(dot > 0){
+
+			dis = -diff/dot;
 
 			if (dis < 0)
 				return false;
@@ -55,7 +60,7 @@ public:
 			return true;
 		}*/
 
-		return false;
+		//return false;
 	}
 
 public:

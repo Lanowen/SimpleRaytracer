@@ -22,13 +22,17 @@ public:
 
 		alpha = (baseRadius*baseRadius)/(height*height);
 
-		double angle = atan(alpha);
+		angle = atan(alpha);
+		cosTheta = cos(theta);
+		sinTheta = sin(theta);
+		cosPhi = cos(phi);
+		sinPhi = sin(phi);
 
-		this->position.x = position.x*cos(theta)-position.z*sin(theta);
-		this->position.z = position.x*sin(theta)+position.z*cos(theta);
+		this->position.x = position.x*cosTheta -position.z*sinTheta;
+		this->position.z = position.x*sinTheta +position.z*cosTheta;
 
-		this->position.y = position.y*cos(phi)-this->position.x*sin(phi);
-		this->position.x = position.y*sin(phi)+this->position.x*cos(phi);
+		this->position.y = position.y*cosPhi -this->position.x*sinPhi;
+		this->position.x = position.y*sinPhi +this->position.x*cosPhi;
 	}
 
 	virtual ~Cone() {}
@@ -36,21 +40,21 @@ public:
 	Ray transformRay(const Ray& ray){
 		Ray newRay = ray;
 
-		newRay.direction.x = ray.direction.x*cos(theta)-ray.direction.z*sin(theta);
-		newRay.direction.z = ray.direction.x*sin(theta)+ray.direction.z*cos(theta);	
+		newRay.direction.x = ray.direction.x*cosTheta-ray.direction.z*sinTheta;
+		newRay.direction.z = ray.direction.x*sinTheta +ray.direction.z*cosTheta;
 
-		newRay.position.x = ray.position.x*cos(theta)-ray.position.z*sin(theta);
-		newRay.position.z = ray.position.x*sin(theta)+ray.position.z*cos(theta);
+		newRay.position.x = ray.position.x*cosTheta -ray.position.z*sinTheta;
+		newRay.position.z = ray.position.x*sinTheta +ray.position.z*cosTheta;
 
 		double tempY = newRay.direction.y;
 
-		newRay.direction.y = tempY*cos(phi)-newRay.direction.x*sin(phi);
-		newRay.direction.x = tempY*sin(phi)+newRay.direction.x*cos(phi);
+		newRay.direction.y = tempY*cosPhi -newRay.direction.x*sinPhi;
+		newRay.direction.x = tempY*sinPhi +newRay.direction.x*cosPhi;
 
 		tempY = newRay.position.y;
 
-		newRay.position.y = tempY*cos(phi)-newRay.position.x*sin(phi);
-		newRay.position.x = tempY*sin(phi)+newRay.position.x*cos(phi);		
+		newRay.position.y = tempY*cosPhi -newRay.position.x*sinPhi;
+		newRay.position.x = tempY*sinPhi +newRay.position.x*cosPhi;
 
 		return newRay;
 	}
@@ -108,14 +112,14 @@ public:
 				a = normal.x;
 				b = normal.y;
 
-				normal.x = a*cos(-phi)-b*sin(-phi);
-				normal.y = a*sin(-phi)+b*cos(-phi);	
+				normal.x = a*cosPhi +b*sinPhi;
+				normal.y = a*-sinPhi +b*cosPhi;
 
 				a = normal.x;
 				b = normal.z;
 
-				normal.x = a*cos(-theta)-b*sin(-theta);
-				normal.z = a*sin(-theta)+b*cos(-theta);	
+				normal.x = a*cosTheta +b*sinTheta;
+				normal.z = a*-sinTheta +b*cosTheta;
 
 				normal.y *=-1;
 
@@ -128,6 +132,11 @@ public:
 		return false;
 	}
 	
+	double angle,
+		cosTheta,
+		sinTheta,
+		cosPhi,
+		sinPhi;
 	double phi, theta, alpha;
 	double height, baseRadius;
 	Vec3 baseNormal;

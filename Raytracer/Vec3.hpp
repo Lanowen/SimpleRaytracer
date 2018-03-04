@@ -98,7 +98,10 @@ public:
 	/**
 	\brief returns the magnitude
 	*/
-	 inline double magnitude() const				{	return sqrt(magnitudeSquared());		}
+	 inline double magnitude() const
+	 {
+		 return sqrt(magnitudeSquared());
+	 }
 
 	/**
 	\brief negation

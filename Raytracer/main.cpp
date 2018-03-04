@@ -16,15 +16,46 @@
 #include <vector>
 #include "SceneParser.hpp"
 #include <future>
+#include <thread>
 
 using namespace std;
 
-#define maxTravelDistance 20000
-#define maxReflections 300
+#define maxTravelDistance 7000
+#define maxReflections 20
 #define fadeDistance 500000.0f
+
+void drawThreaded();
+
+struct DrawPoint
+{
+	int x, y, i;
+	Vec3 color;
+	bool finished, processed;
+};
+
+mutex buffAccessTodo;
+stack<std::reference_wrapper<DrawPoint>> screenBuffTodo;
+
+vector<DrawPoint> screenBuffDone;
 
 Vec3 camPos(0,0, -500);
 Scene rayScene;
+GLint m_viewport[4];
+
+std::thread t1;
+std::thread t2;
+std::thread t3;
+std::thread t4;
+std::thread t5;
+std::thread t6;
+std::thread t7;
+std::thread t8;
+std::thread t9;
+std::thread t10;
+std::thread t11;
+std::thread t12;
+
+std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::nanoseconds> timeStart;
 
 // Initialization routine.
 void setup()
@@ -38,6 +69,59 @@ void setup()
 
 	//SceneParser::parseScene("sceneData.txt", rayScene);	
 	SceneParser::parseScene(filename, rayScene);	
+
+	glClear(GL_COLOR_BUFFER_BIT);
+	
+	glGetIntegerv(GL_VIEWPORT, m_viewport);
+
+	{
+		screenBuffDone.resize(m_viewport[2] * m_viewport[3]);
+
+		for(int x = 0; x < m_viewport[2]; x++)
+		{
+			for(int y = 0; y < m_viewport[3]; y++)
+			{
+				//screenBuffDone[x*m_viewport[3] + y].i = x*m_viewport[3] + y;
+				screenBuffDone[x*m_viewport[3] + y].x = x - (m_viewport[2] >> 1);
+				screenBuffDone[x*m_viewport[3] + y].y = y - (m_viewport[3] >> 1);
+
+				screenBuffDone[x*m_viewport[3] + y].finished = false;
+				screenBuffDone[x*m_viewport[3] + y].processed = false;
+			}
+		}
+
+		//std::random_shuffle(screenBuffDone.begin(), screenBuffDone.end());
+
+		for(unsigned int i = 0; i < screenBuffDone.size(); i++)
+		{
+			screenBuffDone[i].i = i;
+			screenBuffTodo.push(screenBuffDone[i]);
+		}
+	}
+
+	timeStart = std::chrono::high_resolution_clock::now();
+
+	t1.swap(std::thread(drawThreaded));
+	t2.swap(std::thread(drawThreaded));
+	t3.swap(std::thread(drawThreaded));
+	t4.swap(std::thread(drawThreaded));
+	/*t5.swap(std::thread(drawThreaded));
+	t6.swap(std::thread(drawThreaded));
+	t7.swap(std::thread(drawThreaded));
+	t8.swap(std::thread(drawThreaded));
+	t9.swap(std::thread(drawThreaded));
+	t10.swap(std::thread(drawThreaded));
+	t11.swap(std::thread(drawThreaded));
+	t12.swap(std::thread(drawThreaded));*/
+
+	/*auto t1 = async(launch::async, drawThreaded);
+	auto t2 = async(launch::async, drawThreaded);
+	auto t3 = async(launch::async, drawThreaded);
+	auto t4 = async(launch::async, drawThreaded);*/
+	//auto t5 = async(launch::async, drawThreaded);
+	//auto t6 = async(launch::async, drawThreaded);
+	//auto t7 = async(launch::async, drawThreaded);
+	//auto t8 = async(launch::async, drawThreaded);
 
 	//y+ is down on screen, z+ is forward into screen
 
@@ -69,17 +153,18 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 	Vec3 point, normal, temp2;
 	Shape* shape = NULL;
 	double tempDis = 0;
+	vector<pair<Light*, Vec3>> lightsHit;
 
 	if(distanceTravelled < maxTravelDistance && rayScene.raycastAll(ray, point, normal, shape, tempDis)){	
 		distanceTravelled += tempDis;
-		vector<pair<Light*,Vec3>>* lightsHit = new vector<pair<Light*,Vec3>>;
+		//vector<pair<Light*,Vec3>>* lightsHit = new vector<pair<Light*,Vec3>>;
 
 		//if check if lights are directly visible on surface point
-		if(rayScene.lightcastAll(point, normal, *lightsHit)){
+		if(rayScene.lightcastAll(point, normal, lightsHit)){
 
 			//iterate through all lights and set colour accordingly
-			lightNormalPairItr lightsEnd = lightsHit->end();
-			for(lightNormalPairItr itr = lightsHit->begin(); itr != lightsEnd; itr++){
+			lightNormalPairItr lightsEnd = lightsHit.end();
+			for(lightNormalPairItr itr = lightsHit.begin(); itr != lightsEnd; itr++){
 				//doesn't work out too well, need to use HSB model maybe
 				//temp2 = shape->colour.minimum(itr->first->colour) * shape->diffuse; //more realistic based lighting. Red illuminates red, green->green, blue->blue
 
@@ -104,8 +189,8 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 				tempColour += temp2;
 
 				if(previousRelfec > 0 && numReflections <  maxReflections && invSq > 1e-3){
-					delete lightsHit;
-					lightsHit = NULL;
+					//delete lightsHit;
+					//lightsHit = NULL;
 
 					endColour+=tempColour*previousRelfec;
 
@@ -123,8 +208,8 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 					endColour+=tempColour*previousRelfec;
 				}
 			}
-			if(lightsHit)
-				delete lightsHit;
+			//if(lightsHit)
+			//	delete lightsHit;
 		}
 		
 	}		
@@ -178,7 +263,7 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 						Vec3 otherEnd(0);
 						double reflec = shape->reflection, otherReflec = 1;
 						int numReflections = 1;
-						Ray otherRay = Ray(point, ray.direction - 2*ray.direction.dot(normal) * normal);
+						Ray otherRay = Ray(point, ray.direction - 2.0*ray.direction.dot(normal) * normal);
 
 						getColourRecursive(otherRay, otherEnd, tempColour, reflec, otherReflec, distanceTravelled, numReflections);
 						endColour += otherEnd;
@@ -193,10 +278,10 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 			endColour = shape->colour;
 		}
 		else if(rayScene.mode == Scene::normals){
-			endColour = Vec3((normal.x + 1)/2, (normal.y + 1)/2, abs(normal.z));
+			endColour = Vec3((normal.x + 1)/2.0, (normal.y + 1)/2.0, abs(normal.z));
 		}
 		else if(rayScene.mode == Scene::fullNormals){
-			endColour = Vec3((normal.x + 1)/2, (normal.y + 1)/2, (normal.z + 1)/2); //shows reverse z also
+			endColour = Vec3((normal.x + 1)/2.0, (normal.y + 1)/2.0, (normal.z + 1)/2.0); //shows reverse z also
 		}
 
 		return true;
@@ -204,18 +289,6 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 
 	return false;
 }
-
-struct DrawPoint
-{
-	int x, y;
-	Vec3 color;
-};
-
-mutex buffAccessTodo;
-stack<DrawPoint> screenBuffTodo;
-
-mutex buffAccessDone;
-stack<DrawPoint> screenBuffDone;
 
 void drawThreaded()
 {
@@ -228,9 +301,9 @@ void drawThreaded()
 		if(screenBuffTodo.size() == 0)
 		{
 			buffAccessTodo.unlock();
-			break;
+			return;
 		}
-		DrawPoint dp = screenBuffTodo.top();
+		DrawPoint& dp = screenBuffTodo.top();
 		screenBuffTodo.pop();
 		buffAccessTodo.unlock();
 
@@ -244,95 +317,56 @@ void drawThreaded()
 
 		getColour(ray, endColour, distance);
 
-		buffAccessDone.lock();
-		screenBuffDone.push(dp);
-		buffAccessDone.unlock();
+		//buffAccessDone.lock();
+		screenBuffDone[dp.i].color = endColour;
+		screenBuffDone[dp.i].finished = true;
+		//buffAccessDone.unlock();
+
+		std::this_thread::yield();
+		//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 	}
 }
 
 // Drawing routine.
 void drawScene(void)
 {
-	glClear(GL_COLOR_BUFFER_BIT);
+	bool bFlushable = false;
 
-	GLint m_viewport[4];
-	glGetIntegerv(GL_VIEWPORT, m_viewport);
-
-	{
-		vector<DrawPoint> ptList;
-		ptList.resize(m_viewport[2] * m_viewport[3]);
-
-		for(int x = 0; x < m_viewport[2]; x++)
-		{
-			for(int y = 0; y < m_viewport[3]; y++)
-			{
-				ptList[x*m_viewport[3] + y].x = x - m_viewport[2]/2;
-				ptList[x*m_viewport[3] + y].y = y - m_viewport[3]/2;
-			}
-		}
-
-		std::random_shuffle(ptList.begin(), ptList.end());
-
-		for(int i = 0; i < ptList.size(); i++)
-		{
-			screenBuffTodo.push(ptList[i]);
-		}
-	}
-
-	{
-		auto t1 = async(launch::async, drawThreaded);
-		auto t2 = async(launch::async, drawThreaded);
-		auto t3 = async(launch::async, drawThreaded);
-		auto t4 = async(launch::async, drawThreaded);
-		auto t5 = async(launch::async, drawThreaded);
-		auto t6 = async(launch::async, drawThreaded);
-		auto t7 = async(launch::async, drawThreaded);
-		auto t8 = async(launch::async, drawThreaded);
-
-		glColor3f(1, 1, 1);
-
-		while(true)
-		{
-			buffAccessDone.lock();
-			if(screenBuffDone.size() > 0)
-			{
-				while(screenBuffDone.size() > 0)
-				{
-
-					DrawPoint dp = screenBuffDone.top();
-					screenBuffDone.pop();
-
-
-					glColor3dv(&dp.color.x);
-
-					glBegin(GL_POINTS);
-					glVertex2f(dp.x + m_viewport[2] / 2, dp.y + m_viewport[3] / 2);
-					glEnd();
-
-				}
-
-				buffAccessDone.unlock();
-
-				glFlush();
-			} else
-			{
-				buffAccessDone.unlock();
-				buffAccessTodo.lock();
-				if(screenBuffTodo.size() == 0)
-				{
-					buffAccessTodo.unlock();
-					break;
-				}
-				buffAccessTodo.unlock();
-			}
-
-			this_thread::sleep_for(chrono::milliseconds(100));
-		}
-
-		glFlush();
-	}
+	static int i = screenBuffDone.size()-1;
 	
-	system("pause");
+	for(; i >= 0; i--)
+	{
+		if(!screenBuffDone[i].finished)// || screenBuffDone[i].processed)
+		{
+			break;
+		}
+
+		bFlushable = true;
+
+		DrawPoint& dp = screenBuffDone[i];
+
+		dp.processed = true;
+
+		glColor3dv(&dp.color.x);
+
+		glBegin(GL_POINTS);
+		glVertex2f(dp.x + (m_viewport[2] >> 1), dp.y + (m_viewport[3] >> 1));
+
+		glEnd();
+	}
+
+	if(i == -1)
+	{
+		std::cout << "Scene took: " << std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::high_resolution_clock::now() - timeStart)).count()/1000.0 << " seconds to render." << std::endl;
+		i--;//dumb
+	}
+
+	if(bFlushable)
+	{
+		glFlush();
+
+		bFlushable = false;
+	}
 }
 
 // OpenGL window reshape routine.
@@ -364,6 +398,11 @@ void specialKeyInput(int key, int x, int y)
 {
 }
 
+void updateGame()
+{
+	glutPostRedisplay();
+}
+
 // Main routine.
 int main(int argc, char **argv) 
 {
@@ -374,6 +413,7 @@ int main(int argc, char **argv)
 	glutCreateWindow("Ridge Racer");
 	setup();
 	glutDisplayFunc(drawScene);
+	glutIdleFunc(updateGame);
 	glutReshapeFunc(resize);
 	glutKeyboardFunc(keyInput);
 	glutSpecialFunc(specialKeyInput);
