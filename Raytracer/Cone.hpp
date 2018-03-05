@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Utils.hpp"
 #include "Shape.hpp"
 #include "CirularPlane.hpp"
 
@@ -7,22 +8,22 @@
 
 class Cone : public Shape {
 public:
-	Cone(Vec3 up, double height, double baseRadius, Vec3 position, Vec3 colour, double diffuse, double reflection) : Shape(position, colour, diffuse, reflection), up(up), height(height), baseRadius(baseRadius), baseNormal(Vec3(up)), cap(Vec3(0), -up, baseRadius, colour, diffuse, reflection)  {
-		this->up.normalize();
+	Cone(Vec3 up, double height, double baseRadius, Vec3 position, Vec3 colour, double diffuse, double reflection) : Shape(position, colour, diffuse, reflection, SHAPETYPE::SCone), /*up(up),*/ height(height), /*baseRadius(baseRadius), baseNormal(Vec3(up)),*/ cap(Vec3(0), -up, baseRadius, colour, diffuse, reflection)  {
+		up.normalize();
 
-		this->position += this->up*height;
-		position += this->up*height;
+		this->position += up*height;
+		position += up*height;
 
-		cap.planeNormal = -this->up;
-		cap.position = position-this->up*height;
+		cap.planeNormal = -up;
+		cap.position = position-up*height;
 
-		this->up.y*=-1;
-		phi = acos(this->up.y);
-		theta = atan2(-this->up.z,this->up.x);
+		up.y*=-1;
+		double phi = acos(up.y);
+        double theta = atan2(-up.z,up.x);
 
 		alpha = (baseRadius*baseRadius)/(height*height);
 
-		angle = atan(alpha);
+		//angle = atan(alpha);
 		cosTheta = cos(theta);
 		sinTheta = sin(theta);
 		cosPhi = cos(phi);
@@ -59,11 +60,11 @@ public:
 		return newRay;
 	}
 
-	virtual bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
+	bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
 		double a, b, c;
 		dis = 0;
 
-		Ray transformedRay = transformRay(ray);
+		Ray transformedRay = std::move(transformRay(ray));
 
 		Vec3 offset = transformedRay.position - position;
 
@@ -81,19 +82,27 @@ public:
 			n2 -= b;
 
 			if(n1 > 1e-10){
-				intersectionPoint = ray.position + ray.direction*n2;
+				//intersectionPoint = ray.position + ray.direction*n2;
 				//double yPos = transformedRay.position.y + transformedRay.direction.y*n2 + originalPosition.dot(up);
 
 				Vec3 tP;
 
+                //float maxn = Utils::minss(n1, n2);
+
+                //intersectionPoint = ray.position + ray.direction*maxn;
+                //tP = transformedRay.position + transformedRay.direction*maxn;
+                //dis = maxn;
+
 				if(n2 < 0){
-					intersectionPoint = ray.position + ray.direction*n1;
+                    double n = Utils::MyFSel(n2 < 0, n1, n2);
+					intersectionPoint = std::move(ray.position + ray.direction*n1);
 					//yPos = transformedRay.position.y + transformedRay.direction.y*n1 + originalPosition.dot(up);
 					tP = transformedRay.position + transformedRay.direction*n1;
 					dis = n1;
 				}
 				else {
-					intersectionPoint = ray.position + ray.direction*n2;
+                    double n = Utils::MyFSel(n2 < 0, n1, n2);
+					intersectionPoint = std::move(ray.position + ray.direction*n2);
 					//yPos = transformedRay.position.y + transformedRay.direction.y*n2 + originalPosition.dot(up);
 					tP = transformedRay.position + transformedRay.direction*n2;
 					dis = n2;
@@ -105,7 +114,7 @@ public:
 					return cap.raycastSurface(ray,intersectionPoint, normal, dis);
 				}
 
-				normal = Vec3(2*tP.x, 2*tP.y*alpha*alpha, 2*tP.z);
+				normal = std::move(Vec3(2*tP.x, 2*tP.y*alpha*alpha, 2*tP.z));
 
 				double a, b;
 
@@ -132,14 +141,15 @@ public:
 		return false;
 	}
 	
-	double angle,
+	double //angle,
 		cosTheta,
 		sinTheta,
 		cosPhi,
-		sinPhi;
-	double phi, theta, alpha;
-	double height, baseRadius;
-	Vec3 baseNormal;
-	Vec3 up;
+		sinPhi,
+        alpha;
+	//double phi, theta, alpha;
+    double height;// , baseRadius;
+	//Vec3 baseNormal;
+	//Vec3 up;
 	CircularPlane cap;
 };

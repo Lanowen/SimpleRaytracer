@@ -17,8 +17,11 @@ public:
 	/*Ray(Ray& other) : position(other.position) , direction(other.direction) {
 	}*/
 
-	Ray(const Ray& other) : position(other.position) , direction(other.direction) {
+    Ray(const Ray& other) : position(other.position), direction(other.direction) {
 	}
+
+    //Ray(const Ray&& other) : position(other.position), direction(other.direction) {
+    //}
 
 	double setDirection(Vec3 dir){
 		direction = dir;

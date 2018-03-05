@@ -5,6 +5,7 @@
 #include <cfloat>
 #include <sstream>
 #include <algorithm>
+#include <xmmintrin.h>
 
 using namespace std;
 
@@ -253,8 +254,7 @@ public:
 	\brief element-wise minimum
 	*/
 	 inline Vec3 minimum(const Vec3& v) const
-	{ 
-		
+	{
 		return Vec3(min(x, v.x), min(y,v.y), min(z,v.z));	
 	}
 

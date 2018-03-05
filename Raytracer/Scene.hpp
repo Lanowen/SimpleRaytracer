@@ -2,6 +2,9 @@
 
 #include "Light.hpp"
 #include "Shape.hpp"
+#include "Sphere.hpp"
+#include "Plane.hpp"
+#include "Cone.hpp"
 
 #include <vector>
 
@@ -21,9 +24,20 @@ public:
 	Scene() : mode(shaded) {}
 
 	virtual ~Scene(){
-		for(shapeItr itr = shapes.begin(); itr != shapes.end(); itr++){
+		/*for(shapeItr itr = shapes.begin(); itr != shapes.end(); itr++){
 			delete *itr;
-		}
+		}*/
+        for (auto& sphere : spheres) {
+            delete sphere;
+        }
+
+        for (auto& plane : planes) {
+            delete plane;
+        }
+
+        for (auto& cone : cones) {
+            delete cone;
+        }
 
 		for(lightItr itr = lights.begin(); itr != lights.end(); itr++){
 			delete *itr;
@@ -36,7 +50,7 @@ public:
 		distanceTravelled = DBL_MAX;
 		bool retVal = false;
 
-		shapeItr end = shapes.end();
+		/*shapeItr end = shapes.end();
 		for(shapeItr itr = shapes.begin(); itr != end; itr++){
 			if((*itr)->raycastSurface(ray, tempIP, tempNormal, tempDis)){
 				if(tempDis < distanceTravelled){
@@ -47,7 +61,46 @@ public:
 					retVal = true;
 				}
 			}
-		}
+		}*/
+
+        int count = spheres.size() - 1;
+        for (; count >= 0; --count) {
+            if (spheres[count]->raycastSurface(ray, tempIP, tempNormal, tempDis)) {
+                if (tempDis < distanceTravelled) {
+                    distanceTravelled = tempDis;
+                    intersectionPoint = tempIP;
+                    normal = tempNormal;
+                    shape = spheres[count];
+                    retVal = true;
+                }
+            }
+        }
+
+        count = planes.size() - 1;
+        for (; count >= 0; --count) {
+            if (planes[count]->raycastSurface(ray, tempIP, tempNormal, tempDis)) {
+                if (tempDis < distanceTravelled) {
+                    distanceTravelled = tempDis;
+                    intersectionPoint = tempIP;
+                    normal = tempNormal;
+                    shape = planes[count];
+                    retVal = true;
+                }
+            }
+        }
+
+        count = cones.size() - 1;
+        for (; count >= 0; --count) {
+            if (cones[count]->raycastSurface(ray, tempIP, tempNormal, tempDis)) {
+                if (tempDis < distanceTravelled) {
+                    distanceTravelled = tempDis;
+                    intersectionPoint = tempIP;
+                    normal = tempNormal;
+                    shape = cones[count];
+                    retVal = true;
+                }
+            }
+        }
 
 		return retVal;
 	}
@@ -58,27 +111,55 @@ public:
 		bool retVal = false;
 		double distanceTravelled = 0;
 
-		lightItr end = lights.end();
-		for(lightItr itr = lights.begin(); itr != end; itr++){
-			double lightDis = toLight.setDirection((*itr)->position - pos);
-			if(hitNormal.dot(toLight.direction) > 0){ //quick fix for double sided planes not to darken on opposite side of light
-				lightDis *= lightDis;
-				Shape *nothing;
+		//lightItr end = lights.end();
+		//for(lightItr itr = lights.begin(); itr != end; itr++){
+		//	double lightDis = toLight.setDirection((*itr)->position - pos);
+		//	if(hitNormal.dot(toLight.direction) > 0){ //quick fix for double sided planes not to darken on opposite side of light
+		//		lightDis *= lightDis;
+		//		Shape *nothing;
 
-				bool raycast = raycastAll(toLight, intersection, normal, nothing, distanceTravelled);
+		//		bool raycast = raycastAll(toLight, intersection, normal, nothing, distanceTravelled);
 
-				if(!raycast || ((intersection - pos).magnitudeSquared() > lightDis)){
-					lightsHit.push_back(pair<Light*, Vec3>((*itr), toLight.direction));
-					retVal = true;
-				}
-			}
-		}
+		//		if(!raycast || ((intersection - pos).magnitudeSquared() > lightDis)){
+		//			lightsHit.push_back(pair<Light*, Vec3>((*itr), toLight.direction));
+		//			retVal = true;
+		//		}
+		//	}
+		//}
+
+        int count = lights.size() - 1;
+        for (; count >= 0; --count) {
+            double lightDis = toLight.setDirection(lights[count]->position - pos);
+            //if (hitNormal.dot(toLight.direction) > 0) { //quick fix for double sided planes not to darken on opposite side of light
+                lightDis *= lightDis;
+                Shape *nothing;
+
+                bool raycast = raycastAll(toLight, intersection, normal, nothing, distanceTravelled);
+
+                if (!raycast || ((intersection - pos).magnitudeSquared() > lightDis)) {
+                    lightsHit.push_back(pair<Light*, Vec3>(lights[count], toLight.direction));
+                    retVal = true;
+                }
+            //}
+        }
 
 		return retVal;
 	}
 
 	void addShape(Shape* shape){
-		shapes.push_back(shape);
+        //shapes.push_back(shape);
+        switch (shape->GetType())
+        {
+        case SHAPETYPE::SSphere:
+            spheres.push_back(static_cast<Sphere*>(shape));
+            break;
+        case SHAPETYPE::SPlane:
+            planes.push_back(static_cast<Plane*>(shape));
+            break;
+        case SHAPETYPE::SCone:
+            cones.push_back(static_cast<Cone*>(shape));
+            break;
+        }
 	}
 
 	void addLight(Light* light){
@@ -86,6 +167,9 @@ public:
 	}
 
 private:
-	vector<Shape*> shapes;
+	//vector<Shape*> shapes;
+    vector<Sphere*> spheres;
+    vector<Plane*> planes;
+    vector<Cone*> cones;
 	vector<Light*> lights;
 };

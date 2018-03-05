@@ -10,11 +10,13 @@ public:
 	virtual ~CircularPlane() {}
 
 	virtual bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
-		if(Plane::raycastSurface(ray, intersectionPoint, normal, dis)){
+		/*if(Plane::raycastSurface(ray, intersectionPoint, normal, dis)){
 			if((intersectionPoint-position).magnitudeSquared() <= radiusSq)
 				return true;
 		}
-		return false;
+        return false;*/
+        Plane::raycastSurface(ray, intersectionPoint, normal, dis);
+		return (intersectionPoint - position).magnitudeSquared() <= radiusSq;
 	}
 
 public:

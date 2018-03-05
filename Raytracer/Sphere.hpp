@@ -4,11 +4,11 @@
 
 class Sphere : public Shape {
 public:
-	Sphere(Vec3 position, double radius, Vec3 colour, double diffuse, double reflection) : Shape(position, colour, diffuse, reflection), radius(radius) {}
+	Sphere(Vec3 position, double radius, Vec3 colour, double diffuse, double reflection) : Shape(position, colour, diffuse, reflection, SHAPETYPE::SSphere), radius(radius) {}
 
 	virtual ~Sphere() {}
 
-	virtual bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
+	bool raycastSurface(Ray& ray, Vec3& intersectionPoint, Vec3& normal, double& dis) {
 		double b, c;
 
 		Vec3 offset = ray.position - position;

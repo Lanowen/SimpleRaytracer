@@ -28,15 +28,27 @@ void drawThreaded();
 
 struct DrawPoint
 {
-	int x, y, i;
+    float x, y;
 	Vec3 color;
-	bool finished, processed;
+	//bool finished, processed;
 };
 
-mutex buffAccessTodo;
-stack<std::reference_wrapper<DrawPoint>> screenBuffTodo;
+struct HorizontalScan
+{
+    vector<DrawPoint> points;
+    //int i;
+    //bool finished;
+};
 
-vector<DrawPoint> screenBuffDone;
+mutex buffAccessTodo, buffAccessDone;
+vector<HorizontalScan> screenBuffTodo;
+std::atomic<int> TodoIndex;
+
+vector<HorizontalScan> screenBuffDone;
+vector<HorizontalScan> screenBuffDoneSwap;
+
+//Vector of horizontal line of drawPoints
+//vector<HorizontalScan> screenBuffDone;
 
 Vec3 camPos(0,0, -500);
 Scene rayScene;
@@ -74,29 +86,29 @@ void setup()
 	
 	glGetIntegerv(GL_VIEWPORT, m_viewport);
 
-	{
-		screenBuffDone.resize(m_viewport[2] * m_viewport[3]);
+    GLfloat halfWidth = (m_viewport[2] >> 1);
+    GLfloat halfHeight = (m_viewport[3] >> 1);
 
-		for(int x = 0; x < m_viewport[2]; x++)
+	{
+        
+		screenBuffTodo.resize(m_viewport[2]);
+        TodoIndex = screenBuffTodo.size() - 1;
+
+		for(int x = 0; x < m_viewport[2]; ++x)
 		{
+            screenBuffTodo[x].points.resize(m_viewport[3]);
 			for(int y = 0; y < m_viewport[3]; y++)
 			{
-				//screenBuffDone[x*m_viewport[3] + y].i = x*m_viewport[3] + y;
-				screenBuffDone[x*m_viewport[3] + y].x = x - (m_viewport[2] >> 1);
-				screenBuffDone[x*m_viewport[3] + y].y = y - (m_viewport[3] >> 1);
-
-				screenBuffDone[x*m_viewport[3] + y].finished = false;
-				screenBuffDone[x*m_viewport[3] + y].processed = false;
+                screenBuffTodo[x].points[y].x = x - halfWidth;
+                screenBuffTodo[x].points[y].y = y - halfHeight;
 			}
 		}
 
-		//std::random_shuffle(screenBuffDone.begin(), screenBuffDone.end());
-
-		for(unsigned int i = 0; i < screenBuffDone.size(); i++)
-		{
-			screenBuffDone[i].i = i;
-			screenBuffTodo.push(screenBuffDone[i]);
-		}
+		//for(unsigned int i = 0; i < screenBuffDone.size(); i++)
+		//{
+		//	//screenBuffDone[i].i = i;
+		//	screenBuffTodo.push(std::move(screenBuffDone[i]));
+		//}
 	}
 
 	timeStart = std::chrono::high_resolution_clock::now();
@@ -149,10 +161,12 @@ void setup()
 	//rayScene.addLight(new Light(Vec3(100, -100, -200), 1, Vec3(1,1,1)));
 }
 
+
+
 void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& previousRelfec, double& reflec, double& distanceTravelled, int& numReflections){
 	Vec3 point, normal, temp2;
+    double tempDis = 0;
 	Shape* shape = NULL;
-	double tempDis = 0;
 	vector<pair<Light*, Vec3>> lightsHit;
 
 	if(distanceTravelled < maxTravelDistance && rayScene.raycastAll(ray, point, normal, shape, tempDis)){	
@@ -163,8 +177,10 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 		if(rayScene.lightcastAll(point, normal, lightsHit)){
 
 			//iterate through all lights and set colour accordingly
-			lightNormalPairItr lightsEnd = lightsHit.end();
-			for(lightNormalPairItr itr = lightsHit.begin(); itr != lightsEnd; itr++){
+			//lightNormalPairItr lightsEnd = lightsHit.end();
+			//for(lightNormalPairItr itr = lightsHit.begin(); itr != lightsEnd; itr++){
+            int count = lightsHit.size() - 1;
+            for(;count >=0 ; --count) {
 				//doesn't work out too well, need to use HSB model maybe
 				//temp2 = shape->colour.minimum(itr->first->colour) * shape->diffuse; //more realistic based lighting. Red illuminates red, green->green, blue->blue
 
@@ -174,38 +190,34 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 				double invSq = fadeDistance / powf(distanceTravelled, 2);
 
 				//diffuse
-				if(shape->diffuse > 0){
+				//if(shape->diffuse > 0){
 					//double luma = normal.dot(itr->second) * itr->first->intensity * invSq;
-					double luma = itr->first->intensity * invSq;
-					temp2 *= luma;
-				}
+					double luma = lightsHit[count].first->intensity * invSq;
+					temp2 *= Utils::MyFSel(shape->diffuse > 0, luma, 1.0f);
+				//}
 						
 				//specular
-				if(shape->specular > 0){
-					temp2 += itr->first->colour * pow(normal.dot(itr->second), 50) * shape->specular;
-				}
-
+				//if(shape->specular > 0){
+					temp2 += lightsHit[count].first->colour * pow(normal.dot(lightsHit[count].second), 50) * shape->specular;
+				//}
 
 				tempColour += temp2;
+
+                endColour += tempColour * previousRelfec;
 
 				if(previousRelfec > 0 && numReflections <  maxReflections && invSq > 1e-3){
 					//delete lightsHit;
 					//lightsHit = NULL;
 
-					endColour+=tempColour*previousRelfec;
-
 					reflec *= previousRelfec;
 					previousRelfec = shape->reflection;
 
-					ray = Ray(point, ray.direction - 2*ray.direction.dot(normal) * normal);
+					ray = std::move(Ray(point, ray.direction - 2*ray.direction.dot(normal) * normal));
 
 					tempColour = Vec3(0);
 					numReflections++;
 
 					return getColourRecursive(ray, endColour, tempColour, previousRelfec, reflec, distanceTravelled, numReflections);
-				}
-				else if (previousRelfec > 0){
-					endColour+=tempColour*previousRelfec;
 				}
 			}
 			//if(lightsHit)
@@ -215,7 +227,7 @@ void getColourRecursive(Ray& ray, Vec3& endColour, Vec3& tempColour, double& pre
 	}		
 }
 
-bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
+void getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 	Vec3 point, normal, tempColour;
 	Shape* shape = NULL;
 	double tempDis = 0;
@@ -224,70 +236,79 @@ bool getColour(Ray& ray, Vec3& endColour, double& distanceTravelled) {
 		distanceTravelled += tempDis;
 		vector<pair<Light*,Vec3>> lightsHit;
 		
-		if(rayScene.mode == Scene::shaded){
-			endColour = Vec3(0);
+        /*switch (rayScene.mode) {
+        case Scene::shaded:
+        {*/
+            endColour = Vec3(0);
 
-			//if check if lights are directly visible on surface point
-			if(rayScene.lightcastAll(point, normal, lightsHit)){
+            //if check if lights are directly visible on surface point
+            if (rayScene.lightcastAll(point, normal, lightsHit)) {
 
-				//iterate through all lights and set colour accordingly
-				lightNormalPairItr lightsEnd = lightsHit.end();
-				for(lightNormalPairItr itr = lightsHit.begin(); itr != lightsEnd; itr++){
-					//doesn't work out too well, need to use HSB model maybe
-					//tempColour = shape->colour.minimum(itr->first->colour) * shape->diffuse; //more realistic based lighting. Red illuminates red, green->green, blue->blue
+                //iterate through all lights and set colour accordingly
+                //lightNormalPairItr lightsEnd = lightsHit.end();
+                //for(lightNormalPairItr itr = lightsHit.begin(); itr != lightsEnd; itr++){
+                int count = lightsHit.size() - 1;
+                for (; count >= 0; --count) {
+                    //doesn't work out too well, need to use HSB model maybe
+                    //tempColour = shape->colour.minimum(itr->first->colour) * shape->diffuse; //more realistic based lighting. Red illuminates red, green->green, blue->blue
 
-					tempColour = shape->colour * shape->diffuse;
+                    tempColour = shape->colour * shape->diffuse;
 
-					double invSq = fadeDistance / powf(distanceTravelled, 2);
+                    double invSq = fadeDistance / powf(distanceTravelled, 2);
 
-					//diffuse
-					if(shape->diffuse > 0){
-						//double luma = normal.dot(itr->second) * itr->first->intensity * invSq;
-						double luma = itr->first->intensity * invSq;
-						tempColour *= luma;
-					}
-						
-					//specular
-					if(shape->specular > 0){
-						tempColour += itr->first->colour * pow(normal.dot(itr->second), 50) * shape->specular;
-					}
+                    //diffuse
+                    if (shape->diffuse > 0) {
+                        //double luma = normal.dot(itr->second) * itr->first->intensity * invSq;
+                        double luma = lightsHit[count].first->intensity * invSq;
+                        tempColour *= luma;
+                    }
+
+                    //specular
+                    if (shape->specular > 0) {
+                        tempColour += lightsHit[count].first->colour * pow(normal.dot(lightsHit[count].second), 50) * shape->specular;
+                    }
 
 
-					endColour += tempColour;
+                    endColour += tempColour;
 
-					if(shape->reflection > 0){
-						/*if(getColour(Ray(point, ray.direction - 2*ray.direction.dot(normal) * normal), tempColour, distanceTravelled))
-							endColour += tempColour * shape->reflection;*/
+                    if (shape->reflection > 0) {
+                        /*if(getColour(Ray(point, ray.direction - 2*ray.direction.dot(normal) * normal), tempColour, distanceTravelled))
+                            endColour += tempColour * shape->reflection;*/
 
-						tempColour = Vec3(0);
-						Vec3 otherEnd(0);
-						double reflec = shape->reflection, otherReflec = 1;
-						int numReflections = 1;
-						Ray otherRay = Ray(point, ray.direction - 2.0*ray.direction.dot(normal) * normal);
+                        tempColour = Vec3(0);
+                        Vec3 otherEnd(0);
+                        double reflec = shape->reflection, otherReflec = 1;
+                        int numReflections = 1;
+                        Ray otherRay = Ray(point, ray.direction - 2.0*ray.direction.dot(normal) * normal);
 
-						getColourRecursive(otherRay, otherEnd, tempColour, reflec, otherReflec, distanceTravelled, numReflections);
-						endColour += otherEnd;
-					}
-				}
-			}
+                        getColourRecursive(otherRay, otherEnd, tempColour, reflec, otherReflec, distanceTravelled, numReflections);
+                        endColour += otherEnd;
+                    }
+                }
+            }
 
-			//make sure everything is cool, no element over 1
-			endColour = endColour.minimum(Vec3(1,1,1));
-		}
-		else if(rayScene.mode == Scene::solid){
-			endColour = shape->colour;
-		}
-		else if(rayScene.mode == Scene::normals){
-			endColour = Vec3((normal.x + 1)/2.0, (normal.y + 1)/2.0, abs(normal.z));
-		}
-		else if(rayScene.mode == Scene::fullNormals){
-			endColour = Vec3((normal.x + 1)/2.0, (normal.y + 1)/2.0, (normal.z + 1)/2.0); //shows reverse z also
-		}
+            //make sure everything is cool, no element over 1
+            endColour = std::move(endColour.minimum(Vec3(1, 1, 1)));
+        //}
+        //break;
+        //case Scene::solid:
+        //{
+        //    endColour = shape->colour;
+        //} break;
+        //case Scene::normals:
+        //{
+        //    endColour = Vec3((normal.x + 1) / 2.0, (normal.y + 1) / 2.0, abs(normal.z));
+        //} break;
+        //case Scene::fullNormals:
+        //{
+        //    endColour = Vec3((normal.x + 1) / 2.0, (normal.y + 1) / 2.0, (normal.z + 1) / 2.0); //shows reverse z also
+        //} break;
+        //}
 
-		return true;
+		//return true;
 	}
 
-	return false;
+	//return false;
 }
 
 void drawThreaded()
@@ -295,32 +316,48 @@ void drawThreaded()
 	double distance;
 	Ray ray(camPos, camPos);
 
+    int buffSize = screenBuffTodo.size();
+
 	while(true)
 	{
-		buffAccessTodo.lock();
-		if(screenBuffTodo.size() == 0)
+		//buffAccessTodo.lock();
+        int index = TodoIndex.fetch_sub(1);
+		if(index < 0)
 		{
-			buffAccessTodo.unlock();
+			//buffAccessTodo.unlock();
 			return;
 		}
-		DrawPoint& dp = screenBuffTodo.top();
-		screenBuffTodo.pop();
-		buffAccessTodo.unlock();
+		HorizontalScan& scan = screenBuffTodo[index];
+		//screenBuffTodo.pop();
+		//buffAccessTodo.unlock();
 
-		Vec3& endColour = dp.color;
-		endColour.x = 0;
-		endColour.y = 0;
-		endColour.z = 0;
 
-		distance = 0;
-		ray.setDirection(Vec3(dp.x, dp.y, 0) - camPos);
+        int count = scan.points.size()-1;
+        DrawPoint* points = scan.points.data();
 
-		getColour(ray, endColour, distance);
+        for (; count >= 0; --count)
+        {
+            Vec3& endColour = points[count].color;
+            endColour.x = 0;
+            endColour.y = 0;
+            endColour.z = 0;
 
-		//buffAccessDone.lock();
-		screenBuffDone[dp.i].color = endColour;
-		screenBuffDone[dp.i].finished = true;
-		//buffAccessDone.unlock();
+            distance = 0;
+            ray.setDirection(Vec3(points[count].x, points[count].y, 0) - camPos);
+
+            getColour(ray, endColour, distance);
+
+            //buffAccessDone.lock();
+            points[count].color = endColour;
+            //buffAccessDone.unlock();
+        }
+
+        buffAccessDone.lock();
+        screenBuffDone.push_back(std::move(scan));
+        buffAccessDone.unlock();
+
+
+        //scan.finished = true;
 
 		std::this_thread::yield();
 		//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
@@ -332,33 +369,43 @@ void drawScene(void)
 {
 	bool bFlushable = false;
 
-	static int i = screenBuffDone.size()-1;
+	//static int i = screenBuffDone.size()-1;
 	
-	for(; i >= 0; i--)
+    static GLfloat halfWidth = (m_viewport[2] >> 1);
+    static GLfloat halfHeight = (m_viewport[3] >> 1);
+
+    buffAccessDone.lock();
+    screenBuffDoneSwap.clear();
+    std::swap(screenBuffDone, screenBuffDoneSwap);
+    buffAccessDone.unlock();
+
+    int count = screenBuffDoneSwap.size() - 1;
+	for(; count >= 0; count--)
 	{
-		if(!screenBuffDone[i].finished)// || screenBuffDone[i].processed)
-		{
-			break;
-		}
+        HorizontalScan* scan = &screenBuffDoneSwap[count];
+		//if(!scan->finished)// || screenBuffDone[i].processed)
+		//{
+		//	break;
+		//}
 
-		bFlushable = true;
+        glBegin(GL_POINTS);
+        int count = scan->points.size() - 1;
+        DrawPoint* points = scan->points.data();
 
-		DrawPoint& dp = screenBuffDone[i];
+        for (; count >= 0 ; --count)
+        {
+            glColor3dv(&points[count].color.x);
+            glVertex2f(points[count].x + halfWidth, points[count].y + halfHeight);
+        }
+        glEnd();
 
-		dp.processed = true;
-
-		glColor3dv(&dp.color.x);
-
-		glBegin(GL_POINTS);
-		glVertex2f(dp.x + (m_viewport[2] >> 1), dp.y + (m_viewport[3] >> 1));
-
-		glEnd();
+        bFlushable = true;
 	}
 
-	if(i == -1)
+	if(TodoIndex == 0)
 	{
 		std::cout << "Scene took: " << std::chrono::duration_cast<std::chrono::milliseconds>((std::chrono::high_resolution_clock::now() - timeStart)).count()/1000.0 << " seconds to render." << std::endl;
-		i--;//dumb
+        TodoIndex.fetch_sub(1);
 	}
 
 	if(bFlushable)
